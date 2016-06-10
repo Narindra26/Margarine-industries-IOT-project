@@ -8,6 +8,7 @@
 */
 
 #include <SoftwareSerial.h>
+//One wire bus librairies
 #include <OneWire.h>
 
 //Declaration du capteur de temperature DHT11
