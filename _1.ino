@@ -13,7 +13,7 @@
 
 //Declaration du capteur de temperature DHT11
 #include "DHT.h"
-#define DHTPIN 2 //
+#define DHTPIN 2 // pin du capteur DHT 
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
