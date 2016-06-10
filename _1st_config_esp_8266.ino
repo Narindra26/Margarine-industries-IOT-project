@@ -8,10 +8,10 @@
 
 #include <SoftwareSerial.h>
 
-SoftwareSerial ESP8266(10, 11);
+SoftwareSerial ESP8266(10, 11);//A CHANGER S IL Y A UN PROBLEME DE COMMUNICATION
 
-String NomduReseauWifi = "NARINDRA"; // 
-String MotDePasse      = "narindra"; // 
+String NomduReseauWifi = "NARINDRA"; // NOM DU RESEAU WIFI
+String MotDePasse      = "narindra"; // Password wifi
 
 /****************************************************************/
 /*                             INIT                             */
