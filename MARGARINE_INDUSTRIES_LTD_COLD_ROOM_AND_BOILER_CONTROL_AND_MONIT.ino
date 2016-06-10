@@ -1,9 +1,10 @@
 /*
    Title: MARGARINE INDUSTRIES LTD BOILER CONTROL AND TEMPERATURE MONITORING OF COLD ROOM
-   Description: THIS PROGRAM MONITOR THE TEMPERATURE OF COLD ROOM AND CONTROL AN INDUSTRIAL BOILER
+   Description: THIS PROGRAM CONTROL AN INDUSTRIAL BOILER AT MARGARINE INDUSTRIES
    Autor:Narindra RATSIMBA
    Creation:30 March 2016
    Update: 8 April 2016 (Comment and boiler control)
+   Update: 8 April 2016 (BOILER Control)
 */
 
 #include <SoftwareSerial.h>
@@ -66,7 +67,7 @@ void setup() {
 void loop()
 {
 
-  temperature(); //Lecture des donnees des capteurs
+  //temperature(); //Lecture des donnees des capteurs
   //Temps depuis l allumage du systeme
   tempsActuel = millis();
 
@@ -74,26 +75,26 @@ void loop()
   if (tempsActuel - tempsPrecedent1 >= interval1)
   {
     tempsPrecedent1 = tempsActuel;
-    esp_8266(); //Envoi des donnees des capteurs
+    //esp_8266(); //Envoi des donnees des capteurs
   }
 
   // Si le temps d interval entre chaque lecture de la valeur de l etat des GPIO est atteint ou depasse alors on lit les etats des GPIO
   if (tempsActuel - tempsPrecedent2 >= interval2)
   {
     tempsPrecedent2 = tempsActuel;
-    commande(); //
+    //commande(); //
   }
 }
 
 
 //Fonction de lecture des valeurs du capteur
-void temperature()
+void feedback()
 {
-  h = dht.readHumidity();
+  //h = dht.readHumidity();
 
-  t = dht.readTemperature();
+  //t = dht.readTemperature();
 
-  f = dht.readTemperature(true);
+  //f = dht.readTemperature(true);
 
   pinStatus13 = digitalRead(pin13);
 }
