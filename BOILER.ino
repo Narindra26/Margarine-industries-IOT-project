@@ -23,16 +23,16 @@ volatile unsigned long last_micros;
 
 //---------------TIMERS------------------------------------------
 //Variables pour le temps
-long tempsActuel = 0;
-long tempsPrecedent1 = 0;// Temps entre les envois des donnees du capteur
-long tempsPrecedent2 = 0;//Temps entre chaque lecture de commande
-long tempsPrecedent3 = 0;
-long tempsPrecedent4 = 0;
-long interval1 = 500;
-long interval2 = 10000;
-long interval3 = 15000;
-long interval4 = 30000;
-
+unsigned long tempsActuel = 0;
+unsigned long tempsPrecedent1 = 0;// Temps entre les envois des donnees du capteur
+unsigned long tempsPrecedent2 = 0;//Temps entre chaque lecture de commande
+unsigned long tempsPrecedent3 = 0;
+unsigned long tempsPrecedent4 = 0;
+unsigned long interval1 = 5;
+unsigned long interval2 = 10;
+unsigned long interval3 = 15;
+unsigned long interval4 = 30;
+//----------------------------------------------------------------
 
 // Variables pour les GPIO
 //----------------------------------------------------------------------
@@ -115,8 +115,10 @@ void setup() {
   Serial.begin(9600);
   // Debut de la liaison serie virtuel
   ser.begin(9600);
+  
   // Debut du capteur de temperature
   //dht.begin();
+
   // reset du module wifi ESP8266
   ser.println("AT+RST");
 }
@@ -137,14 +139,14 @@ void loop()
   {
 #ifdef DEBUG
     Serial.print("temps 1: ");
-    Serial.println(tempsActuel - tempsPrecedent1);
+    Serial.println(tempsActuel - tempsPrecedent1 * 100);
 #endif
     tempsPrecedent1 = tempsActuel;
     manuel();
   }
 
   // Si le temps d interval entre chaque lecture de la valeur de l etat des GPIO est atteint ou depasse alors on lit les etats des GPIO
-  if (tempsActuel - tempsPrecedent2 >= interval2)
+  if (tempsActuel - tempsPrecedent2 >= interval2 * 1000)
   {
 #ifdef DEBUG
     Serial.print("temps 2: ");
@@ -153,10 +155,11 @@ void loop()
 
     tempsPrecedent2 = tempsActuel;
     commande();
+    manuel();
   }
 
   // Si le temps d interval entre chaque lecture de la valeur de l etat des GPIO est atteint ou depasse alors on lit les etats des GPIO
-  if (tempsActuel - tempsPrecedent3 >= interval3)
+  if (tempsActuel - tempsPrecedent3 >= interval3 * 1000)
   {
 #ifdef DEBUG
     Serial.print("temps 3: ");
@@ -166,18 +169,18 @@ void loop()
     tempsPrecedent3 = tempsActuel;
     thingspeak();
   }
-  
+
   /*
-  if (tempsActuel - tempsPrecedent4 >= interval4)
-  {
-#ifdef DEBUG
+    if (tempsActuel - tempsPrecedent4 >= interval4)
+    {
+    #ifdef DEBUG
     Serial.print("temps 4: ");
     Serial.println(tempsActuel - tempsPrecedent4);
-#endif
+    #endif
 
     tempsPrecedent4 = tempsActuel;
     //ds18b20();; //
-  }
+    }
   */
 
 }
@@ -378,7 +381,6 @@ void commande()
   getStr += apiCommandKey;
   getStr += "\r\n";
 
-
   // Envoi de la longueur des donnees
   cmd = "AT+CIPSEND=";
   cmd += String(getStr.length());
@@ -549,7 +551,9 @@ void thingspeak()
   ser.println(cmd);
 
   if (ser.find("Error")) {
+#ifdef DEBUG
     Serial.println("ERREUR DE CONNECTION AVEC THINGSPEAK.COM");
+#endif
     return;
   }
 
@@ -582,12 +586,16 @@ void thingspeak()
   if (ser.find(">")) {
     ser.print(getStr);
     ser.println("AT+CIPCLOSE");//Fermeture de la connection
+#ifdef DEBUG
     Serial.println("FIN DE L ENVOI DE DONNEES THINGSPEAK");
+#endif
   }
 
   else {
     ser.println("AT+CIPCLOSE");
+#ifdef DEBUG
     Serial.println("FERMETURE DE LA CONNECTION AVEC THINGSPEAK.COM");
+#endif
   }
 }
 //--------------------FIN DE L ENVOI DONNEES VERS INTERNET----------------------------------------
@@ -675,11 +683,14 @@ void ds18b20() {
   }
   celsius = (float)raw / 16.0;
   fahrenheit = celsius * 1.8 + 32.0;
+
+#ifdef DEBUG
   Serial.print("  Temperature = ");
   Serial.print(celsius);
   Serial.print(" Celsius, ");
   Serial.print(fahrenheit);
   Serial.println(" Fahrenheit");
+#endif
 }
 
 //--------------FIN----TEMPERATURE---------------------------------------------------------------
