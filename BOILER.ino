@@ -1,8 +1,16 @@
+/*
+   Title: BOILER CONTROL MARGARINE INDUSTRIES
+   Description: Control du boiler par internet
+   Autor:Narindra RATSIMBA
+   Creation:30 March 2016
+   Update: 8 April 2016 (Comment and boiler control)
+
+*/
 
 #include <SoftwareSerial.h>
 #include <OneWire.h>
 
-#define DEBUG 1
+//#define DEBUG 1
 //Declaration du capteur de temperature DHT11
 //#include "DHT.h"
 //#define DHTPIN 2 //
@@ -18,8 +26,17 @@ String cmd;
 String getStr;
 int commandeOutput;
 
-long debouncing_time = 100; //Debouncing en Milliseconds
+//--------------Wifi_Configuration-----------------------------
+String NomduReseauWifi = "HotRoom"; //
+String MotDePasse      = "milmonitoring"; //
+//--------------------------------------------------------------
+
+//---------------SWITCH DEBOUNCING------------------------------
+long debouncing_time = 1000; //Debouncing en Milliseconds
 volatile unsigned long last_micros;
+//--------------------------------------------------------------
+
+
 
 //---------------TIMERS------------------------------------------
 //Variables pour le temps
@@ -115,7 +132,10 @@ void setup() {
   Serial.begin(9600);
   // Debut de la liaison serie virtuel
   ser.begin(9600);
-  
+  delay(500);
+  //-------------------INITIALISTATION WIFI----------------------------
+  //initser();
+  //-------------------********************----------------------------
   // Debut du capteur de temperature
   //dht.begin();
 
@@ -185,16 +205,108 @@ void loop()
 
 }
 
+/****************************************************************/
+/*                Fonction qui initialise l'ESP8266             */
+/****************************************************************/
+void initser()
+{
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+  Serial.println("**************** DEBUT DE L'INITIALISATION ***************");
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+RST");
+  recoitDuser(2000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CWMODE=3");
+  recoitDuser(5000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CWJAP=\"" + NomduReseauWifi + "\",\"" + MotDePasse + "\"");
+  recoitDuser(10000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIFSR");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIPMUX=1");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIPSERVER=1,80");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+  Serial.println("***************** INITIALISATION TERMINEE ****************");
+  Serial.println("**********************************************************");
+  Serial.println("");
+#endif
+}
+
+/****************************************************************/
+/*        Fonction qui envoie une commande Ã  l'ser          */
+/****************************************************************/
+void envoieAuser(String commande)
+{
+  ser.println(commande);
+}
+/****************************************************************/
+/*Fonction qui lit et affiche les messages envoyÃ©s par l'ser*/
+/****************************************************************/
+void recoitDuser(const int timeout)
+{
+  String reponse = "";
+  long int time = millis();
+  while ( (time + timeout) > millis())
+  {
+    while (ser.available())
+    {
+      char c = ser.read();
+      reponse += c;
+    }
+  }
+
+#ifdef DEBUG
+  Serial.print(reponse);
+#endif
+
+}
+//---------------------------------------------------------------
 
 //Fonction de lecture des valeurs du capteur
 void temperature()
 {
+
   boiler1State = digitalRead(RL1_Speed1);
   boiler2State = digitalRead(RL2_Speed2);
+  int boilerVitesse;
+  if (boiler1State == HIGH && boiler2State == HIGH)
+  {
+    boilerVitesse = 0;
+  }
+  else if (boiler1State == LOW && boiler2State == HIGH)
+  {
+    boilerVitesse = 1;
+  }
+  else if (boiler1State == LOW && boiler2State == LOW)
+  {
+    boilerVitesse = 2;
+  }
+  else
+  {
+    boilerVitesse = 10;
+  }
 
-  coldroom1 = boiler1State;
+  coldroom1 = boilerVitesse;
 
-  coldroom2 = boiler2State;
+  coldroom2 = boilerVitesse;
 
   chillroom1 = celsius;
 
@@ -304,7 +416,7 @@ void manuel()
     if (switchBtn2State == 0)
     {
 
-      if (boiler2State == 1 && boiler1State != 0)
+      if (boiler2State == 1 && boiler1State == 1)
       {
         digitalWrite(RL1_Speed1, LOW); //Vitesse 1
         delay(1000);
@@ -436,90 +548,102 @@ void commande()
       switch (commandeOutput)
       {
         case 1:
-          if (boiler1State == 0)
+          if (boiler1State == 1 && boiler2State == 1)
           {
-            digitalWrite(RL2_Speed2, LOW);
+            digitalWrite(RL2_Speed2, HIGH);//Eteindre RL2
             delay(1000);
-            digitalWrite(RL1_Speed1, HIGH);
+            digitalWrite(RL1_Speed1, LOW);//Vitesse 1
+            delay(1500);
+            digitalWrite(RL7_Reset, LOW); //reset on
             delay(1000);
-            digitalWrite(RL7_Reset, HIGH);
+            digitalWrite(RL7_Reset, HIGH); //reset off
             delay(1000);
-            digitalWrite(RL7_Reset, LOW);
+            digitalWrite(RL3_temoinSpeed1, LOW);
 #ifdef DEBUG
             Serial.println("BOILER SPEED 1");
 #endif
           }
-          break;
-        case 2:
-          if (boiler2State == 0 && boiler1State == 1)
+
+          else if (boiler2State == 0 && boiler1State == 0)
           {
-            digitalWrite(RL1_Speed1, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
-#endif
+            digitalWrite(RL2_Speed2, HIGH); //Eteindre RL2
+            digitalWrite(RL4_temoinSpeed2, HIGH);
             delay(1000);
-            digitalWrite(RL2_Speed2, HIGH);
+            digitalWrite(RL1_Speed1, LOW); ////Vitesse 1
+            digitalWrite(RL3_temoinSpeed1, LOW);
 #ifdef DEBUG
-            Serial.println("BOILER SPEED 2 ON");
+            Serial.println("BOILER SPEED 2 OFF");
+            Serial.println("BOILER SPEED 1 ON");
 #endif
           }
-
-          else if (boiler2State == 1)
+          break;
+        case 2:
+          if (boiler1State == 0)
           {
-            digitalWrite(RL2_Speed2, LOW);
+            if (boiler2State == 1)
+            {
+              digitalWrite(RL2_Speed2, HIGH); //Eteindre RL2
+              digitalWrite(RL4_temoinSpeed2, HIGH);
+
+              delay(1000);
+              digitalWrite(RL1_Speed1, HIGH); //Eteindre RL1
+              digitalWrite(RL3_temoinSpeed1, HIGH);
 #ifdef DEBUG
-            Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
+              Serial.println("BOILER OFF");
 #endif
-            delay(1000);
-            digitalWrite(RL1_Speed1, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 OFF");
-#endif
+            }
           }
           break;
         case 3:
-          if (boiler2State == 0 && boiler1State != 1)
+          if (boiler1State == 1 && boiler2State == 1)
           {
-            digitalWrite(RL1_Speed1, HIGH);
+            digitalWrite(RL1_Speed1, LOW); //Vitesse 1
             delay(1000);
-            digitalWrite(RL7_Reset, HIGH);
+            digitalWrite(RL7_Reset, LOW); //reset on
             delay(1000);
-            digitalWrite(RL7_Reset, LOW);
+            digitalWrite(RL7_Reset, HIGH); //reset off
 #ifdef DEBUG
             Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
 #endif
+            digitalWrite(RL3_temoinSpeed1, LOW);
             delay(1000);
-            digitalWrite(RL2_Speed2, HIGH);
+            digitalWrite(RL2_Speed2, LOW); // Vitesse 2
 #ifdef DEBUG
             Serial.println("BOILER SPEED 2 ON");
 #endif
+            digitalWrite(RL4_temoinSpeed2, LOW);
           }
-          else if (boiler2State == 0 && boiler1State == 1)
+          else if (boiler1State == 0 && boiler2State == 1 )
           {
-            digitalWrite(RL1_Speed1, HIGH);
+            digitalWrite(RL1_Speed1, LOW); //Vitesse 1
+            digitalWrite(RL3_temoinSpeed1, LOW);
 #ifdef DEBUG
             Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
 #endif
             delay(1000);
-            digitalWrite(RL2_Speed2, HIGH);
+            digitalWrite(RL2_Speed2, LOW); //Vitesse 2
 #ifdef DEBUG
             Serial.println("BOILER SPEED 2 ON");
 #endif
+            digitalWrite(RL4_temoinSpeed2, LOW);
           }
           break;
         case 4:
-          if (boiler2State == 1)
+          if (boiler2State == 0)
           {
-            digitalWrite(RL2_Speed2, LOW);
+            digitalWrite(RL2_Speed2, HIGH); // Eteindre vitesse 2
+            digitalWrite(RL4_temoinSpeed2, HIGH);
 #ifdef DEBUG
             Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
 #endif
             delay(1000);
-            digitalWrite(RL1_Speed1, LOW);
+            digitalWrite(RL1_Speed1, HIGH); // Eteindre vitesse 1
+            digitalWrite(RL3_temoinSpeed1, HIGH);
 #ifdef DEBUG
             Serial.println("BOILER SPEED 1 OFF");
 #endif
           }
+
           break;
         default:
 #ifdef DEBUG

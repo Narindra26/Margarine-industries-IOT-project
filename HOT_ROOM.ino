@@ -1,7 +1,13 @@
+/*
+   Title: HOT ROOM CONTROL AND TEMPERATURE MONITORING MARGARINE INDUSTRIES
+   Description: Control du boiler par internet
+   Autor:Narindra RATSIMBA
+   Creation:30 March 2016
+   Update: 8 April 2016 (Comment and boiler control)
+*/
 
 #include <SoftwareSerial.h>
 #include <OneWire.h>
-
 //#define DEBUG 1
 //Declaration du capteur de temperature DHT11
 //#include "DHT.h"
@@ -18,19 +24,24 @@ String cmd;
 String getStr;
 int commandeOutput;
 
+//--------------Wifi_Configuration-----------------------------
+String NomduReseauWifi = "HotRoom"; //
+String MotDePasse      = "hotroompassword"; //
+//--------------------------------------------------------------
+
 long debouncing_time = 2000; //Debouncing en Milliseconds
 volatile unsigned long last_micros;
 
 //Variables pour le temps
-long tempsActuel = 0;
-long tempsPrecedent1 = 0;// Temps entre les envois des donnees du capteur
-long tempsPrecedent2 = 0;//Temps entre chaque lecture de commande
-long tempsPrecedent3 = 0;
-long tempsPrecedent4 = 0;
-int interval1 = 500;
-int interval2 = 45000;
-int interval3 = 50000;
-int interval4 = 5000;
+unsigned long tempsActuel = 0;
+unsigned long tempsPrecedent1 = 0;// Temps entre les envois des donnees du capteur
+unsigned long tempsPrecedent2 = 0;//Temps entre chaque lecture de commande
+unsigned long tempsPrecedent3 = 0;
+unsigned long tempsPrecedent4 = 0;
+unsigned long interval1 = 5;
+unsigned long interval2 = 10;
+unsigned long interval3 = 15;
+unsigned long interval4 = 30;
 
 
 // Variables pour les GPIO
@@ -70,12 +81,12 @@ float celsius, fahrenheit;
 
 
 //API key de l ecriture des donnees de temperature chez thingspeak.com
-String apiKey = "M7BIYYTVRH36UAAD";
-String apiCommandKey = "RLZQRXSSJ3QXQI5K";
+String apiKey = "IP9BA4LTN16AC87Q";
+String apiCommandKey = "18R3KNR1ADPKBU9S";
 
 
 // Creation de l objet software serial pour la liaison serie virtuelle
-SoftwareSerial ser(11, 10); // RX, TX
+SoftwareSerial ser(10, 11); // RX, TX
 
 
 void setup() {
@@ -114,6 +125,12 @@ void setup() {
   Serial.begin(9600);
   // Debut de la liaison serie virtuel
   ser.begin(9600);
+
+  delay(500);
+  //-------------------INITIALISTATION WIFI----------------------------
+  //initser();
+  //-------------------********************----------------------------
+
   // Debut du capteur de temperature
   //dht.begin();
   // reset du module wifi ESP8266
@@ -124,8 +141,7 @@ void setup() {
 
 void loop()
 {
-  manuel();
-  //temperature(); //Lecture des donnees des capteurs
+  temperature(); //Lecture des donnees des capteurs
   //debug();
   //Temps depuis l allumage du systeme
   tempsActuel = millis();
@@ -133,30 +149,123 @@ void loop()
   // Si le temps d interval entre chaque envoi de donnee est atteint ou depasse alors on envoie les donnees
   if (tempsActuel - tempsPrecedent1 >= interval1)
   {
+#ifdef DEBUG
+    Serial.print("temps 1: ");
+    Serial.println(tempsActuel - tempsPrecedent1 * 100);
+#endif
     tempsPrecedent1 = tempsActuel;
-    //Commande manuelle
+    manuel();//Commande manuelle
   }
 
   // Si le temps d interval entre chaque lecture de la valeur de l etat des GPIO est atteint ou depasse alors on lit les etats des GPIO
-  if (tempsActuel - tempsPrecedent2 >= interval2)
+  if (tempsActuel - tempsPrecedent2 >= interval2 * 1000)
   {
+#ifdef DEBUG
+    Serial.print("temps 2: ");
+    Serial.println(tempsActuel - tempsPrecedent2);
+#endif
     tempsPrecedent2 = tempsActuel;
-    //commande();
+    commande();
+    manuel();
   }
 
   // Si le temps d interval entre chaque lecture de la valeur de l etat des GPIO est atteint ou depasse alors on lit les etats des GPIO
-  if (tempsActuel - tempsPrecedent3 >= interval3)
+  if (tempsActuel - tempsPrecedent3 >= interval3 * 1000)
   {
+#ifdef DEBUG
+    Serial.print("temps 3: ");
+    Serial.println(tempsActuel - tempsPrecedent3);
+#endif
     tempsPrecedent3 = tempsActuel;
-    //thingspeak();
+    thingspeak();
   }
-  if (tempsActuel - tempsPrecedent4 >= interval4)
-  {
+  /*
+    if (tempsActuel - tempsPrecedent4 >= interval4 * 1000)
+    {
+    #ifdef DEBUG
+    Serial.print("temps 4: ");
+    Serial.println(tempsActuel - tempsPrecedent4);
+    #endif
     tempsPrecedent4 = tempsActuel;
     //ds18b20();; //
+    }
+  */
+}
+
+/****************************************************************/
+/*                Fonction qui initialise l'ESP8266             */
+/****************************************************************/
+void initser()
+{
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+  Serial.println("**************** DEBUT DE L'INITIALISATION ***************");
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+RST");
+  recoitDuser(2000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CWMODE=3");
+  recoitDuser(5000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CWJAP=\"" + NomduReseauWifi + "\",\"" + MotDePasse + "\"");
+  recoitDuser(10000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIFSR");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIPMUX=1");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+#endif
+  envoieAuser("AT+CIPSERVER=1,80");
+  recoitDuser(1000);
+#ifdef DEBUG
+  Serial.println("**********************************************************");
+  Serial.println("***************** INITIALISATION TERMINEE ****************");
+  Serial.println("**********************************************************");
+  Serial.println("");
+#endif
+}
+
+/****************************************************************/
+/*        Fonction qui envoie une commande Ã  l'ser          */
+/****************************************************************/
+void envoieAuser(String commande)
+{
+  ser.println(commande);
+}
+/****************************************************************/
+/*Fonction qui lit et affiche les messages envoyÃ©s par l'ser*/
+/****************************************************************/
+void recoitDuser(const int timeout)
+{
+  String reponse = "";
+  long int time = millis();
+  while ( (time + timeout) > millis())
+  {
+    while (ser.available())
+    {
+      char c = ser.read();
+      reponse += c;
+    }
   }
 
+#ifdef DEBUG
+  Serial.print(reponse);
+#endif
+
 }
+//---------------------------------------------------------------
 
 
 //Fonction de lecture des valeurs du capteur
@@ -164,8 +273,26 @@ void temperature()
 {
   timerState = digitalRead(RL1_timer);
   localeState = digitalRead(RL2_Locale);
+  int hotRoomState;
 
-  coldroom1 = timerState;
+  if (localeState == HIGH && timerState == HIGH)
+  {
+    hotRoomState = 0;
+  }
+  else if (localeState == LOW && timerState == HIGH)
+  {
+    hotRoomState = 1;
+  }
+  else if (localeState == HIGH && timerState == LOW)
+  {
+    hotRoomState = 1;
+  }
+  else
+  {
+    hotRoomState = 10;
+  }
+
+  coldroom1 = hotRoomState;
 
   coldroom2 = localeState;
 
@@ -284,7 +411,7 @@ void commande()
     return;
   }
   // Preparation de l envoi de la requete GET
-  getStr = "GET /talkbacks/8543/commands/execute?api_key=";
+  getStr = "GET /talkbacks/9471/commands/execute?api_key=";
   getStr += apiCommandKey;
   getStr += "\r\n";
 
@@ -306,34 +433,34 @@ void commande()
       String line = ser.readStringUntil('\r');
       message = (String)line;
 
-      if (message.substring(6, 13) == "13HIGH*")
+      if (message.substring(6, 13) == "10HIGH*")
       {
 #ifdef DEBUG
-        Serial.println("1st speed on");
+        Serial.println("local on");
 #endif
         commandeOutput = 1;
       }
 
-      else if (message.substring(6, 12) == "13LOW*")
+      else if (message.substring(6, 12) == "10LOW*")
       {
 #ifdef DEBUG
-        Serial.println("1st speed off");
+        Serial.println("local off");
 #endif
         commandeOutput = 2;
       }
 
-      else if (message.substring(6, 13) == "12HIGH*")
+      else if (message.substring(6, 13) == "11HIGH*")
       {
 #ifdef DEBUG
-        Serial.println("2nd speed on");
+        Serial.println("timer on");
 #endif
         commandeOutput = 3;
       }
 
-      else if (message.substring(6, 12) == "12LOW*")
+      else if (message.substring(6, 12) == "11LOW*")
       {
 #ifdef DEBUG
-        Serial.println("2nd speed off");
+        Serial.println("timer off");
 #endif
         commandeOutput = 4;
       }
@@ -344,89 +471,46 @@ void commande()
       switch (commandeOutput)
       {
         case 1:
-          if (timerState == 0)
+          if (timerState == 1 && localeState == 1)
           {
-            digitalWrite(RL2_Locale, LOW);
-            delay(1000);
-            digitalWrite(RL1_timer, HIGH);
-            delay(1000);
-            digitalWrite(RL7_Reset, HIGH);
-            delay(1000);
-            digitalWrite(RL7_Reset, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1");
-#endif
+            if (localeState == 0)
+            {
+              digitalWrite(RL2_Locale, HIGH);
+              digitalWrite(RL4_temoinLocale, HIGH);
+            }
+            digitalWrite(RL1_timer, LOW);
+            digitalWrite(RL3_temoinTimer, LOW);
           }
           break;
         case 2:
-          if (localeState == 0 && timerState == 1)
+          if (timerState == 0)
           {
             digitalWrite(RL1_timer, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
-#endif
-            delay(1000);
-            digitalWrite(RL2_Locale, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 2 ON");
-#endif
-          }
-
-          else if (localeState == 1)
-          {
-            digitalWrite(RL2_Locale, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
-#endif
-            delay(1000);
-            digitalWrite(RL1_timer, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 OFF");
-#endif
+            digitalWrite(RL3_temoinTimer, HIGH);
           }
           break;
         case 3:
-          if (localeState == 0 && timerState != 1)
+          if (localeState == 1)
           {
-            digitalWrite(RL1_timer, HIGH);
-            delay(1000);
-            digitalWrite(RL7_Reset, HIGH);
-            delay(1000);
-            digitalWrite(RL7_Reset, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
-#endif
-            delay(1000);
-            digitalWrite(RL2_Locale, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 2 ON");
-#endif
-          }
-          else if (localeState == 0 && timerState == 1)
-          {
-            digitalWrite(RL1_timer, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
-#endif
-            delay(1000);
-            digitalWrite(RL2_Locale, HIGH);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 2 ON");
-#endif
+            if (timerState == 0)
+            {
+              digitalWrite(RL1_timer, HIGH);
+              digitalWrite(RL3_temoinTimer, HIGH);
+            }
+            digitalWrite(RL2_Locale, LOW);
+            digitalWrite(RL4_temoinLocale, LOW);
           }
           break;
         case 4:
-          if (localeState == 1)
+          if (localeState == 0)
           {
-            digitalWrite(RL2_Locale, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
-#endif
-            delay(1000);
-            digitalWrite(RL1_timer, LOW);
-#ifdef DEBUG
-            Serial.println("BOILER SPEED 1 OFF");
-#endif
+            if (timerState == 0)
+            {
+              digitalWrite(RL1_timer, HIGH);
+              digitalWrite(RL3_temoinTimer, HIGH);
+            }
+            digitalWrite(RL2_Locale, HIGH);
+            digitalWrite(RL4_temoinLocale, HIGH);
           }
           break;
         default:
@@ -586,7 +670,6 @@ void ds18b20() {
   Serial.print(fahrenheit);
   Serial.println(" Fahrenheit");
 }
-
 
 
 
