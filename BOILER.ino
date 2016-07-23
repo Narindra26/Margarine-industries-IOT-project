@@ -26,6 +26,9 @@ String cmd;
 String getStr;
 int commandeOutput;
 
+//Etat initiale du boiler
+int initState;
+
 //--------------Wifi_Configuration-----------------------------
 String NomduReseauWifi = "HotRoom"; //
 String MotDePasse      = "milmonitoring"; //
@@ -88,8 +91,9 @@ float celsius, fahrenheit;
 
 
 //API key de l ecriture des donnees de temperature chez thingspeak.com
-String apiKey = "M7BIYYTVRH36UAAD";
+String apiKey = "ZKXIN41FPCFTMM9Z";
 String apiCommandKey = "RLZQRXSSJ3QXQI5K";
+String apiInitKey = "CFZOIRI78646BYCE";
 
 
 // Creation de l objet software serial pour la liaison serie virtuelle
@@ -133,6 +137,8 @@ void setup() {
   // Debut de la liaison serie virtuel
   ser.begin(9600);
   delay(500);
+
+  Serial.println("...By Narindra Ratsimba");
   //-------------------INITIALISTATION WIFI----------------------------
   //initser();
   //-------------------********************----------------------------
@@ -141,13 +147,14 @@ void setup() {
 
   // reset du module wifi ESP8266
   ser.println("AT+RST");
+  connection();
+  initialisation();
 }
 
 
 
 void loop()
 {
-
   temperature(); //Lecture des donnees des capteurs
   //debug();
 
@@ -251,14 +258,14 @@ void initser()
 }
 
 /****************************************************************/
-/*        Fonction qui envoie une commande Ã  l'ser          */
+/*        Fonction qui envoie une commande à l'ser          */
 /****************************************************************/
 void envoieAuser(String commande)
 {
   ser.println(commande);
 }
 /****************************************************************/
-/*Fonction qui lit et affiche les messages envoyÃ©s par l'ser*/
+/*Fonction qui lit et affiche les messages envoyés par l'ser*/
 /****************************************************************/
 void recoitDuser(const int timeout)
 {
@@ -299,26 +306,22 @@ void temperature()
   {
     boilerVitesse = 2;
   }
-  else
-  {
-    boilerVitesse = 10;
-  }
 
   coldroom1 = boilerVitesse;
 
   coldroom2 = boilerVitesse;
 
-  chillroom1 = celsius;
+  //chillroom1 = celsius;
 
-  chillroom2 = celsius;
+  //chillroom2 = celsius;
 
-  boiler1 = digitalRead(RL1_Speed1);
+  //boiler1 = digitalRead(RL1_Speed1);
 
-  boiler2 = digitalRead(RL2_Speed2);
+  // boiler2 = digitalRead(RL2_Speed2);
 
-  hotroomcontrol = 0;
+  //hotroomcontrol = 0;
 
-  hotroom = celsius;
+  //hotroom = celsius;
 }
 
 void debug()
@@ -475,19 +478,8 @@ void manuel()
 //--------------------------------COMMANDE VIA INTERNET----------------------------------------
 void commande()
 {
-  // Debut de la connection TCP pour l ecoute des commandes
-  cmd  = "AT+CIPSTART=\"TCP\",\"";
-  cmd += "184.106.153.149"; // api.thingspeak.com
-  cmd += "\",80";
-  ser.println(cmd);
+  connection();
 
-  if (ser.find("Error"))
-  {
-#ifdef DEBUG
-    Serial.println("ERREUR DE CONNECTION AVEC APP");
-#endif
-    return;
-  }
   // Preparation de l envoi de la requete GET
   getStr = "GET /talkbacks/8543/commands/execute?api_key=";
   getStr += apiCommandKey;
@@ -577,23 +569,21 @@ void commande()
 #endif
           }
           break;
-        case 2:
-          if (boiler1State == 0)
-          {
-            if (boiler2State == 1)
-            {
-              digitalWrite(RL2_Speed2, HIGH); //Eteindre RL2
-              digitalWrite(RL4_temoinSpeed2, HIGH);
 
-              delay(1000);
-              digitalWrite(RL1_Speed1, HIGH); //Eteindre RL1
-              digitalWrite(RL3_temoinSpeed1, HIGH);
+        case 2:
+          digitalWrite(RL2_Speed2, HIGH); // Eteindre vitesse 2
+          digitalWrite(RL4_temoinSpeed2, HIGH);
 #ifdef DEBUG
-              Serial.println("BOILER OFF");
+          Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
 #endif
-            }
-          }
+          delay(1000);
+          digitalWrite(RL1_Speed1, HIGH); // Eteindre vitesse 1
+          digitalWrite(RL3_temoinSpeed1, HIGH);
+#ifdef DEBUG
+          Serial.println("BOILER SPEED 1 OFF");
+#endif
           break;
+
         case 3:
           if (boiler1State == 1 && boiler2State == 1)
           {
@@ -628,21 +618,20 @@ void commande()
             digitalWrite(RL4_temoinSpeed2, LOW);
           }
           break;
+
         case 4:
-          if (boiler2State == 0)
-          {
-            digitalWrite(RL2_Speed2, HIGH); // Eteindre vitesse 2
-            digitalWrite(RL4_temoinSpeed2, HIGH);
+
+          digitalWrite(RL2_Speed2, HIGH); // Eteindre vitesse 2
+          digitalWrite(RL4_temoinSpeed2, HIGH);
 #ifdef DEBUG
-            Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
+          Serial.println("BOILER SPEED 2 OFF... Waiting for speed 1");
 #endif
-            delay(1000);
-            digitalWrite(RL1_Speed1, HIGH); // Eteindre vitesse 1
-            digitalWrite(RL3_temoinSpeed1, HIGH);
+          delay(1000);
+          digitalWrite(RL1_Speed1, HIGH); // Eteindre vitesse 1
+          digitalWrite(RL3_temoinSpeed1, HIGH);
 #ifdef DEBUG
-            Serial.println("BOILER SPEED 1 OFF");
+          Serial.println("BOILER SPEED 1 OFF");
 #endif
-          }
 
           break;
         default:
@@ -656,9 +645,12 @@ void commande()
     else {
       ser.println("AT+CIPCLOSE");
 #ifdef DEBUG
-      Serial.println("NO OUTPUT COMMAND FOUND, CLOSING CONNECTION WITH CONNECTION WITH TALKBACK");
+      Serial.println("FERMETURE DE LA CONNECTION AVEC TALKBACK");
+      Serial.println("...RETENTATIVE DE CONNECTION AVEC TALKBACK");
 #endif
     }
+
+
   }
 }
 //-------------------------FIN DE LA COMMANDE VIA INTERNET----------------------------------------
@@ -709,7 +701,7 @@ void thingspeak()
   ser.println(cmd);
   if (ser.find(">")) {
     ser.print(getStr);
-    ser.println("AT+CIPCLOSE");//Fermeture de la connection
+    //ser.println("AT+CIPCLOSE");//Fermeture de la connection
 #ifdef DEBUG
     Serial.println("FIN DE L ENVOI DE DONNEES THINGSPEAK");
 #endif
@@ -719,7 +711,10 @@ void thingspeak()
     ser.println("AT+CIPCLOSE");
 #ifdef DEBUG
     Serial.println("FERMETURE DE LA CONNECTION AVEC THINGSPEAK.COM");
+    Serial.println("RETENTATIVE DE CONNECTION AVEC THINGSPEAK.COM");
 #endif
+    connection();
+    thingspeak();
   }
 }
 //--------------------FIN DE L ENVOI DONNEES VERS INTERNET----------------------------------------
@@ -821,4 +816,137 @@ void ds18b20() {
 
 
 
+//--------------------------------Connection initiale---------------------------------
+void connection()
+{
+  // Debut de la connection TCP pour l ecoute des commandes
+  cmd  = "AT+CIPSTART=\"TCP\",\"";
+  cmd += "184.106.153.149"; // api.thingspeak.com
+  cmd += "\",80";
+  ser.println(cmd);
+  if (ser.find("Error"))
+  {
+#ifdef DEBUG
+    Serial.println("ERREUR DE CONNECTION AVEC THINGSPEAK");
+#endif
+    connection();
+  }
+  else
+  {
+#ifdef DEBUG
+    Serial.println("CONNECTION AVEC THINGSPEAK REUSSIE");
+#endif
+  }
 
+}
+//-----------------------------Fin de la Connection initiale---------------------------------
+
+
+
+//-------------------------DERNIER ETAT DU BOILER----------------------------------------
+void initialisation()
+{
+  // Preparation de l envoi de la requete GET
+  getStr = "GET /apps/thinghttp/send_request?api_key=";
+  getStr += apiInitKey;
+  getStr += "\r\n";
+
+  // Envoi de la longueur des donnees
+  cmd = "AT+CIPSEND=";
+  cmd += String(getStr.length());
+  ser.println(cmd);
+  if (ser.find(">"))
+  {
+    ser.print(getStr);
+    if (ser.find(":"))
+    {
+      String line = ser.readStringUntil('\n');
+      message = line;
+      initState = message.toInt();
+#ifdef DEBUG
+      Serial.print("LAST STATE: ");
+      Serial.println(initState);
+#endif
+    }
+
+
+
+#ifdef DEBUG
+    Serial.println("INITIALISATION TERMINEE");
+#endif
+    initialState();
+  }
+  else
+  {
+    ser.println("AT+CIPCLOSE");
+#ifdef DEBUG
+    Serial.println("TENTATIVE D'INITIALISTATION");
+    delay(1500);
+    connection();
+    initialisation();
+#endif
+  }
+}
+//--------------------FIN DE L INITIALISTAION.----------------------------------------
+
+
+//---------------------------------Etat initiale---------------------------------------
+void initialState()
+{
+  switch (initState)
+  {
+    case 0:
+      digitalWrite(RL2_Speed2, HIGH); //Eteindre RL2
+      digitalWrite(RL4_temoinSpeed2, HIGH);
+      delay(1000);
+      digitalWrite(RL1_Speed1, HIGH); ////Eteindre RL 1
+      digitalWrite(RL3_temoinSpeed1, HIGH);
+#ifdef DEBUG
+      Serial.println("BOILER SPEED 2 OFF");
+      Serial.println("BOILER SPEED 1 OFF");
+#endif
+      break;
+
+    case 1:
+      digitalWrite(RL2_Speed2, HIGH);//Eteindre RL2
+      delay(1000);
+      digitalWrite(RL1_Speed1, LOW);//Vitesse 1
+      delay(1500);
+      digitalWrite(RL7_Reset, LOW); //reset on
+      delay(1000);
+      digitalWrite(RL7_Reset, HIGH); //reset off
+      delay(1000);
+      digitalWrite(RL3_temoinSpeed1, LOW);
+#ifdef DEBUG
+      Serial.println("BOILER SPEED 1");
+#endif
+      break;
+
+    case 2:
+      digitalWrite(RL1_Speed1, LOW); //Vitesse 1
+      digitalWrite(RL3_temoinSpeed1, LOW);
+      delay(1000);
+      digitalWrite(RL7_Reset, LOW); //reset on
+      delay(1000);
+      digitalWrite(RL7_Reset, HIGH); //reset off
+#ifdef DEBUG
+      Serial.println("BOILER SPEED 1 ON... Waiting for speed 2");
+#endif
+      delay(1000);
+      digitalWrite(RL2_Speed2, LOW); // Vitesse 2
+#ifdef DEBUG
+      Serial.println("BOILER SPEED 2 ON");
+#endif
+      digitalWrite(RL4_temoinSpeed2, LOW);
+      break;
+
+    default:
+#ifdef DEBUG
+      Serial.println("NO OUTPUT COMMAND FOUND");
+#endif
+      break;
+  }
+}
+
+
+//---------------------------Fin de l initialisation des commandes-------------------------------
